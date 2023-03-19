@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useLoaderData } from "react-router-dom";
-import { Box, Grid, Rating, Pagination } from "@mui/material";
+import { Box, Grid, Rating, Pagination, Typography } from "@mui/material";
 import { getCourses } from "../server";
 import type { Course } from "../models/course.model";
-import "./courses.css";
 
 export const loader = async (): Promise<Course[]> => {
   const courses = await getCourses();
@@ -49,8 +48,15 @@ export default function Courses() {
 
   return (
     <div className="courses">
-      <h1 className="courses-title">See our courses below</h1>
-      <div className="container row">
+      <Typography
+        fontFamily="inherit"
+        textAlign="center"
+        margin="1rem"
+        fontSize="2rem"
+      >
+        See our courses below
+      </Typography>
+      <Box display="flex" margin="0 1rem" justifyContent="center" flexWrap="wrap" gap="1rem">
         {displayedCourses?.map((course) => {
           let skillsGained = (course.meta.skills || [""])
             .join(", ")
@@ -59,9 +65,14 @@ export default function Courses() {
           return (
             <Link to={course.id} key={course.id} target="_blank">
               <Box
+                flexShrink={1}
                 sx={{
-                  width: 350,
-                  minHeight: 250,
+                  width: {
+                    xs: 280,
+                    sm: 320,
+                    lg: 400
+                  },
+                  height: 250,
                   padding: "1rem",
                   fontSize: "16px",
                   fontWeight: "400",
@@ -87,30 +98,38 @@ export default function Courses() {
                   <Grid item xs={6}>
                     <img
                       src={course.previewImageLink + "/cover.webp"}
-                      width={136.5}
-                      height={60}
+                      width="100%"
                       alt="course"
                     />
                   </Grid>
                   <Grid item xs={6}>
-                    <h4 className="course-elem-title">Course</h4>
+                    <Typography
+                      fontFamily="inherit"
+                      fontSize="0.8rem"
+                      color="#c1c3ca"
+                    >
+                      Course
+                    </Typography>
                     <p>{course.description}</p>
-                    <p style={{ opacity: "0.7" }}>
+                    <Typography
+                      fontFamily="inherit"
+                      fontSize="0.8rem"
+                      color="#c1c3ca"
+                    >
                       lessons: {course.lessonsCount}
-                    </p>
+                    </Typography>
                   </Grid>
                 </Grid>
                 {skillsGained && (
-                  <p
-                    style={{
-                      fontSize: "0.7rem",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
+                  <Typography
+                    fontFamily="inherit"
+                    fontSize="0.7rem"
+                    whiteSpace="nowrap"
+                    overflow="hidden"
+                    textOverflow="ellipsis"
                   >
                     <b>Skills you'll learn: </b> {skillsGained}
-                  </p>
+                  </Typography>
                 )}
 
                 <Rating
@@ -124,9 +143,19 @@ export default function Courses() {
             </Link>
           );
         })}
-      </div>
+      </Box>
       <Pagination
-        className="courses__pagination"
+        sx={{
+          margin: "0 auto",
+          width: "fit-content",
+          padding: "3rem 0",
+          "& ul li button": {
+            color: "#fff",
+            "& svg": {
+              color: "#fff",
+            },
+          },
+        }}
         page={currentPage}
         count={numberOfPages}
         onChange={handlePaginationClick}

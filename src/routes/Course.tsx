@@ -1,14 +1,13 @@
 import { useEffect, useState, MouseEventHandler } from "react";
 import { useLoaderData, useBeforeUnload } from "react-router-dom";
-import { Grid, Box } from "@mui/material";
+import { Grid, Box, Typography, Button } from "@mui/material";
 import LockIcon from "@mui/icons-material/Lock";
+import PictureInPictureIcon from "@mui/icons-material/PictureInPicture";
 import { styled } from "@mui/system";
 import { convertSecondsToString } from "../common";
 import { getCourseById } from "../server";
 import localStorageService from "../services/localStorage.service";
-import type { lastlyViewedData } from "../models/lastlyViewedData.model";
-import type { Course } from "../models/course.model";
-import type { Lesson } from "../models/lesson.model";
+import type { lastlyViewedData, Course, Lesson } from "../models";
 import "./course.css";
 
 export const loader = async ({ params }: any): Promise<Course> => {
@@ -20,9 +19,52 @@ const BlurredGrid = styled(Grid)(({ theme }) => ({
   filter: "blur(1px)",
 }));
 
+const LessonContainer = styled(Grid)(({ theme }) => ({
+  width: "100%",
+  height: "80vh",
+  [theme.breakpoints.down("md")]: {
+    display: "block",
+  },
+}));
+
+const RightColumnGrid = styled(Grid)(({ theme }) => ({
+  height: "100%",
+  [theme.breakpoints.down("md")]: {
+    width: "100%",
+    maxWidth: "100%",
+    maxHeight: "calc(5rem * 4)",
+    overflowY: "scroll",
+  },
+}));
+
+const LeftColumnGrid = styled(Grid)(({ theme }) => ({
+  height: "100%",
+  [theme.breakpoints.down("md")]: {
+    width: "100%",
+    height: "auto",
+    maxWidth: "100%",
+    padding: "1rem 0",
+    margin: "0 auto",
+  },
+}));
+
+const enableKeyboardShortcuts = (videoElement: HTMLVideoElement) => {
+  document.addEventListener("keydown", (event) => {
+    console.log("asd");
+    if (event.shiftKey && event.key === "ArrowUp") {
+      videoElement.playbackRate -= 0.25;
+      console.log("it was clicked");
+    } else if (event.shiftKey && event.key === "ArrowBottom") {
+      videoElement.playbackRate += 0.25;
+    }
+  });
+};
+
 export default function Course() {
   const course = useLoaderData() as Course;
-  let video: HTMLMediaElement;
+  let videoElement: HTMLVideoElement;
+
+  const isPipSupported = "pictureInPictureEnabled" in document;
 
   const [currentLesson, setCurrentLesson] = useState<Lesson>(course.lessons[0]);
 
@@ -31,25 +73,28 @@ export default function Course() {
     // на якому зупинився користувач
     const data: lastlyViewedData = {
       lesson: currentLesson,
-      time: video.currentTime,
+      time: videoElement.currentTime,
     };
     localStorageService.setLastlyViewedData(course.id, data);
   });
 
   useEffect(() => {
     const currentVideoLink = currentLesson.link;
+    enableKeyboardShortcuts(videoElement);
     if (Hls.isSupported()) {
-      video = document.getElementById("lesson-video") as HTMLMediaElement;
+      videoElement = document.getElementById(
+        "lesson-video"
+      ) as HTMLVideoElement;
       const hls = new Hls();
-      // CORS не дозволяє 
+      // CORS не дозволяє
       // hls.loadSource(currentVideoLink)
       hls.loadSource(
         "http://playertest.longtailvideo.com/adaptive/wowzaid3/playlist.m3u8"
       );
-      hls.attachMedia(video);
-    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      hls.attachMedia(videoElement);
+    } else if (videoElement.canPlayType("application/vnd.apple.mpegurl")) {
       // video.src = currentVideoLink;
-      video.src =
+      videoElement.src =
         "http://playertest.longtailvideo.com/adaptive/wowzaid3/playlist.m3u8";
     }
   }, [currentLesson]);
@@ -60,10 +105,10 @@ export default function Course() {
     if (storedData) {
       lastlyViewedData = JSON.parse(storedData) as lastlyViewedData;
       setCurrentLesson(lastlyViewedData.lesson);
-      video.currentTime = lastlyViewedData.time;
+      videoElement.currentTime = lastlyViewedData.time;
     } else {
       setCurrentLesson(course.lessons[0]);
-      video.currentTime = 0;
+      videoElement.currentTime = 0;
     }
   }, []);
 
@@ -71,17 +116,40 @@ export default function Course() {
     setCurrentLesson(lesson);
   };
 
+  const togglePictureInPicture = () => {
+    if (videoElement !== document.pictureInPictureElement) {
+      videoElement.requestPictureInPicture();
+    } else {
+      document.exitPictureInPicture();
+    }
+  };
+
   return (
     <section className="course-section">
-      <Grid
+      <LessonContainer
         sx={{ width: "100%", height: "80vh" }}
         container
         className="lesson-container"
       >
-        <Grid className="col-left" item xs={8}>
+        <LeftColumnGrid className="col-left" item xs={8}>
           <video id="lesson-video" controls></video>
-        </Grid>
-        <Grid
+          {isPipSupported && (
+            <Button
+              sx={{
+                zIndex: 2,
+                position: "absolute",
+                top: 10,
+                left: 10,
+                color: "#fff",
+              }}
+              onClick={togglePictureInPicture}
+              id="pipButton"
+            >
+              <PictureInPictureIcon />
+            </Button>
+          )}
+        </LeftColumnGrid>
+        <RightColumnGrid
           sx={{ overflowX: "hidden", overflowY: "scroll" }}
           className="col-right"
           item
@@ -101,9 +169,13 @@ export default function Course() {
                 alt="preview"
               />
             </Grid>
-            <Grid item xs={6}>
-              <h3>COURSE</h3>
-              <h2>{course.title}</h2>
+            <Grid item xs={8}>
+              <Typography fontFamily="inherit" fontSize="0.7rem">
+                COURSE
+              </Typography>
+              <Typography fontFamily="inherit" fontSize="1rem">
+                {course.title}
+              </Typography>
             </Grid>
           </Grid>
           {course.lessons
@@ -146,22 +218,32 @@ export default function Course() {
                     }
                   >
                     <Grid item alignSelf="start">
-                      <span>{order}</span>
+                      <Typography fontFamily="inherit" fontSize="0.9rem">
+                        {order}
+                      </Typography>
                     </Grid>
                     <Grid
                       className="lesson-title"
                       item
                       alignItems="space-between"
                     >
-                      <h4>{title}</h4>
-                      <span>{convertSecondsToString(duration)}</span>
+                      <Typography fontFamily="inherit" fontSize="0.9rem">
+                        {title}
+                      </Typography>
+                      <Typography
+                        fontFamily="inherit"
+                        fontSize="0.75rem"
+                        fontWeight="300"
+                      >
+                        {convertSecondsToString(duration)}
+                      </Typography>
                     </Grid>
                   </LessonGrid>
                 </Box>
               );
             })}
-        </Grid>
-      </Grid>
+        </RightColumnGrid>
+      </LessonContainer>
     </section>
   );
 }
