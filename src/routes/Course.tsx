@@ -10,9 +10,9 @@ import localStorageService from "../services/localStorage.service";
 import type { lastlyViewedData, Course, Lesson } from "../models";
 import "./course.css";
 
-export const loader = async ({ params }: any): Promise<Course> => {
+export const loader = async ({ params }: any): Promise<Course | null> => {
   const course = await getCourseById(params.courseId);
-  return course;
+  return course || null;
 };
 
 const BlurredGrid = styled(Grid)(({ theme }) => ({
@@ -48,18 +48,6 @@ const LeftColumnGrid = styled(Grid)(({ theme }) => ({
   },
 }));
 
-const enableKeyboardShortcuts = (videoElement: HTMLVideoElement) => {
-  document.addEventListener("keydown", (event) => {
-    console.log("asd");
-    if (event.shiftKey && event.key === "ArrowUp") {
-      videoElement.playbackRate -= 0.25;
-      console.log("it was clicked");
-    } else if (event.shiftKey && event.key === "ArrowBottom") {
-      videoElement.playbackRate += 0.25;
-    }
-  });
-};
-
 export default function Course() {
   const course = useLoaderData() as Course;
   let videoElement: HTMLVideoElement;
@@ -67,6 +55,7 @@ export default function Course() {
   const isPipSupported = "pictureInPictureEnabled" in document;
 
   const [currentLesson, setCurrentLesson] = useState<Lesson>(course.lessons[0]);
+  const [error, setError] = useState("");
 
   useBeforeUnload(() => {
     // для кожного курсу я зберігаю останню прогляноту лекцію та час,
@@ -80,7 +69,6 @@ export default function Course() {
 
   useEffect(() => {
     const currentVideoLink = currentLesson.link;
-    enableKeyboardShortcuts(videoElement);
     if (Hls.isSupported()) {
       videoElement = document.getElementById(
         "lesson-video"
@@ -100,15 +88,19 @@ export default function Course() {
   }, [currentLesson]);
 
   useEffect(() => {
-    let lastlyViewedData;
-    const storedData = localStorageService.getLastlyViewedData(course.id);
-    if (storedData) {
-      lastlyViewedData = JSON.parse(storedData) as lastlyViewedData;
-      setCurrentLesson(lastlyViewedData.lesson);
-      videoElement.currentTime = lastlyViewedData.time;
+    if (course) {
+      let lastlyViewedData;
+      const storedData = localStorageService.getLastlyViewedData(course.id);
+      if (storedData) {
+        lastlyViewedData = JSON.parse(storedData) as lastlyViewedData;
+        setCurrentLesson(lastlyViewedData.lesson);
+        videoElement.currentTime = lastlyViewedData.time;
+      } else {
+        setCurrentLesson(course.lessons[0]);
+        videoElement.currentTime = 0;
+      }
     } else {
-      setCurrentLesson(course.lessons[0]);
-      videoElement.currentTime = 0;
+      setError("Could not fetch courses");
     }
   }, []);
 
@@ -126,124 +118,136 @@ export default function Course() {
 
   return (
     <section className="course-section">
-      <LessonContainer
-        sx={{ width: "100%", height: "80vh" }}
-        container
-        className="lesson-container"
-      >
-        <LeftColumnGrid className="col-left" item xs={8}>
-          <video id="lesson-video" controls></video>
-          {isPipSupported && (
-            <Button
-              sx={{
-                zIndex: 2,
-                position: "absolute",
-                top: 10,
-                left: 10,
-                color: "#fff",
-              }}
-              onClick={togglePictureInPicture}
-              id="pipButton"
-            >
-              <PictureInPictureIcon />
-            </Button>
-          )}
-        </LeftColumnGrid>
-        <RightColumnGrid
-          sx={{ overflowX: "hidden", overflowY: "scroll" }}
-          className="col-right"
-          item
-          xs={4}
+      {error ? (
+        <Typography
+          fontFamily="inherit"
+          textAlign="center"
+          margin="1rem"
+          fontSize="1rem"
+          color="red"
         >
-          <Grid
-            container
-            spacing={2}
-            padding="1rem"
-            className="course-title"
-            alignItems="center"
+          {error}
+        </Typography>
+      ) : (
+        <LessonContainer
+          sx={{ width: "100%", height: "80vh" }}
+          container
+          className="lesson-container"
+        >
+          <LeftColumnGrid className="col-left" item xs={8}>
+            <video id="lesson-video" controls></video>
+            {isPipSupported && (
+              <Button
+                sx={{
+                  zIndex: 2,
+                  position: "absolute",
+                  top: 10,
+                  left: 10,
+                  color: "#fff",
+                }}
+                onClick={togglePictureInPicture}
+                id="pipButton"
+              >
+                <PictureInPictureIcon />
+              </Button>
+            )}
+          </LeftColumnGrid>
+          <RightColumnGrid
+            sx={{ overflowX: "hidden", overflowY: "scroll" }}
+            className="col-right"
+            item
+            xs={4}
           >
-            <Grid item xs={4}>
-              <img
-                width="100%"
-                src={`${course.previewImageLink}/cover.webp`}
-                alt="preview"
-              />
+            <Grid
+              container
+              spacing={2}
+              padding="1rem"
+              className="course-title"
+              alignItems="center"
+            >
+              <Grid item xs={4}>
+                <img
+                  width="100%"
+                  src={`${course.previewImageLink}/cover.webp`}
+                  alt="preview"
+                />
+              </Grid>
+              <Grid item xs={8}>
+                <Typography fontFamily="inherit" fontSize="0.7rem">
+                  COURSE
+                </Typography>
+                <Typography fontFamily="inherit" fontSize="1rem">
+                  {course.title}
+                </Typography>
+              </Grid>
             </Grid>
-            <Grid item xs={8}>
-              <Typography fontFamily="inherit" fontSize="0.7rem">
-                COURSE
-              </Typography>
-              <Typography fontFamily="inherit" fontSize="1rem">
-                {course.title}
-              </Typography>
-            </Grid>
-          </Grid>
-          {course.lessons
-            .sort((lesson1, lesson2) => lesson1.order - lesson2.order)
-            .map((lesson) => {
-              const isSelected = lesson.id === currentLesson.id;
-              const isAvailable = lesson.status === "unlocked";
-              const { id, order, title, duration } = lesson;
-              const LessonGrid = isAvailable ? Grid : BlurredGrid;
-              const handleLessonBtnClick = isAvailable
-                ? () => handeLessonClick(lesson)
-                : null;
-              return (
-                <Box key={id} sx={{ position: "relative" }}>
-                  {!isAvailable && (
-                    <LockIcon
+            {course.lessons
+              .sort((lesson1, lesson2) => lesson1.order - lesson2.order)
+              .map((lesson) => {
+                const isSelected = lesson.id === currentLesson.id;
+                const isAvailable = lesson.status === "unlocked";
+                const { id, order, title, duration } = lesson;
+                const LessonGrid = isAvailable ? Grid : BlurredGrid;
+                const handleLessonBtnClick = isAvailable
+                  ? () => handeLessonClick(lesson)
+                  : null;
+                return (
+                  <Box key={id} sx={{ position: "relative" }}>
+                    {!isAvailable && (
+                      <LockIcon
+                        sx={{
+                          fontSize: "1.5rem",
+                          position: "absolute",
+                          top: "calc(50% - 0.75rem)",
+                          left: "calc(50% - 0.75rem)",
+                        }}
+                      />
+                    )}
+                    <LessonGrid
+                      className={`lesson-data ${isSelected ? "selected" : ""}`}
+                      container
                       sx={{
-                        fontSize: "1.5rem",
-                        position: "absolute",
-                        top: "calc(50% - 0.75rem)",
-                        left: "calc(50% - 0.75rem)",
+                        height: "5rem",
+                        padding: "0 1rem",
+                        margin: "0",
+                        position: "relative",
+                        "&:hover": {
+                          cursor: isAvailable ? "pointer" : "default",
+                        },
                       }}
-                    />
-                  )}
-                  <LessonGrid
-                    className={`lesson-data ${isSelected ? "selected" : ""}`}
-                    container
-                    sx={{
-                      height: "5rem",
-                      padding: "0 1rem",
-                      margin: "0",
-                      position: "relative",
-                      "&:hover": {
-                        cursor: isAvailable ? "pointer" : "default",
-                      },
-                    }}
-                    spacing={2}
-                    onClick={
-                      handleLessonBtnClick as MouseEventHandler<HTMLDivElement>
-                    }
-                  >
-                    <Grid item alignSelf="start">
-                      <Typography fontFamily="inherit" fontSize="0.9rem">
-                        {order}
-                      </Typography>
-                    </Grid>
-                    <Grid
-                      className="lesson-title"
-                      item
-                      alignItems="space-between"
+                      spacing={2}
+                      onClick={
+                        handleLessonBtnClick as MouseEventHandler<HTMLDivElement>
+                      }
                     >
-                      <Typography fontFamily="inherit" fontSize="0.9rem">
-                        {title}
-                      </Typography>
-                      <Typography
-                        fontFamily="inherit"
-                        fontSize="0.75rem"
-                        fontWeight="300"
+                      <Grid item alignSelf="start">
+                        <Typography fontFamily="inherit" fontSize="0.9rem">
+                          {order}
+                        </Typography>
+                      </Grid>
+                      <Grid
+                        className="lesson-title"
+                        item
+                        alignItems="space-between"
                       >
-                        {convertSecondsToString(duration)}
-                      </Typography>
-                    </Grid>
-                  </LessonGrid>
-                </Box>
-              );
-            })}
-        </RightColumnGrid>
-      </LessonContainer>
+                        <Typography fontFamily="inherit" fontSize="0.9rem">
+                          {title}
+                        </Typography>
+                        <Typography
+                          fontFamily="inherit"
+                          fontSize="0.75rem"
+                          fontWeight="300"
+                        >
+                          {convertSecondsToString(duration)}
+                        </Typography>
+                      </Grid>
+                    </LessonGrid>
+                  </Box>
+                );
+              })}
+          </RightColumnGrid>
+        </LessonContainer>
+      )}
     </section>
   );
 }
