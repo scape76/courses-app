@@ -18,6 +18,7 @@ h6 {
 }
 
 a {
+  display: flex;
   text-decoration: none;
 }
 
